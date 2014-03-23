@@ -23,9 +23,7 @@
         return this;
       }
       this._defineOperations();
-      this._crdts = new OriginalCollection("_" + name + "Crdts", {
-        _preventAutopublish: true
-      });
+      this._crdts = new Meteor.Collection("_" + name + "Crdts");
       if (Meteor.isServer) {
         this._crdts._ensureIndex({
           crdtId: 1
@@ -105,6 +103,14 @@
         args: args
       });
       return id;
+    };
+
+    Collection.prototype.reset = function() {
+      this.remove({});
+      if (this._versioned) {
+        this._crdts.remove({});
+      }
+      return true;
     };
 
     Collection.prototype._getCrdt = function(crdtId) {
@@ -404,115 +410,69 @@
 
   })(OriginalCollection);
 
-  if (Meteor.isServer) {
-    Meteor.Collection.prototype.reset = function() {
-      this.remove({});
-      if (this._versioned) {
-        this._crdts.remove({});
-      }
-      return true;
-    };
-    OriginalLivedataSubscription = Meteor._LivedataSubscription;
-    Meteor._LivedataSubscription = (function(_super) {
-
-      __extends(_LivedataSubscription, _super);
-
-      function _LivedataSubscription() {
-        return _LivedataSubscription.__super__.constructor.apply(this, arguments);
-      }
-
-      _LivedataSubscription.prototype._removingAllDocs = false;
-
-      _LivedataSubscription.prototype._synchronizeCrdt = function(collectionName, id, fields) {
-        var added, changedKeys, coll, collView, crdtFields, crdtKey, crdtKeys, crdtSnapshot, currentCrdt, docView, internalKeys, publishedKeys, strId, _i, _len, _ref, _ref1;
-        if (fields == null) {
-          fields = {};
-        }
-        coll = Meteor.tx._getCollection(collectionName);
-        if (coll == null) {
-          return;
-        }
-        currentCrdt = (_ref = coll._crdts.findOne({
-          _crdtId: id
-        })) != null ? _ref : {};
-        if (currentCrdt == null) {
-          console.assert(false, 'Found snapshot without corresponding CRDT');
-          return;
-        }
-        internalKeys = ['_id', '_crdtId', '_clock', '_deleted'];
-        changedKeys = _.keys(fields);
-        strId = this._idFilter.idStringify(currentCrdt._id);
-        collView = this._session.collectionViews[coll._crdts._name];
-        if (collView != null) {
-          docView = collView.documents[strId];
-        }
-        added = !(((_ref1 = this._documents[coll._crdts._name]) != null ? _ref1[strId] : void 0) != null);
-        crdtSnapshot = added ? {} : docView.getFields();
-        publishedKeys = _.keys(crdtSnapshot);
-        crdtKeys = _.union(internalKeys, changedKeys, publishedKeys);
-        crdtFields = {};
-        for (_i = 0, _len = crdtKeys.length; _i < _len; _i++) {
-          crdtKey = crdtKeys[_i];
-          if (currentCrdt[crdtKey] != null) {
-            crdtFields[crdtKey] = currentCrdt[crdtKey];
-          }
-        }
-        return [coll._crdts._name, currentCrdt._id, crdtFields, added];
-      };
-
-      _LivedataSubscription.prototype.added = function(collectionName, id, fields) {
-        var added, crdtColl, crdtFields, crdtId, crdtSync;
-        crdtSync = this._synchronizeCrdt(collectionName, id, fields);
-        if (_.isArray(crdtSync)) {
-          crdtColl = crdtSync[0], crdtId = crdtSync[1], crdtFields = crdtSync[2], added = crdtSync[3];
-          if (added) {
-            _LivedataSubscription.__super__.added.call(this, crdtColl, crdtId, crdtFields);
-          } else {
-            this.changed(crdtColl, crdtId, crdtFields, false);
-          }
-        }
-        return _LivedataSubscription.__super__.added.call(this, collectionName, id, fields);
-      };
-
-      _LivedataSubscription.prototype.changed = function(collectionName, id, fields, syncCrdt) {
-        var added, crdtColl, crdtFields, crdtId, crdtSync;
-        if (syncCrdt == null) {
-          syncCrdt = true;
-        }
-        if (syncCrdt) {
-          crdtSync = this._synchronizeCrdt(collectionName, id, fields);
-          if (_.isArray(crdtSync)) {
-            crdtColl = crdtSync[0], crdtId = crdtSync[1], crdtFields = crdtSync[2], added = crdtSync[3];
-            console.assert(!added, 'Trying to update a non-existent CRDT');
-            _LivedataSubscription.__super__.changed.call(this, crdtColl, crdtId, crdtFields);
-          }
-        }
-        return _LivedataSubscription.__super__.changed.call(this, collectionName, id, fields);
-      };
-
-      _LivedataSubscription.prototype.removed = function(collectionName, id) {
-        var added, crdtColl, crdtFields, crdtId, crdtSync, isCrdtColl;
-        isCrdtColl = /_\w+Crdts/.test(collectionName);
-        console.assert(!isCrdtColl || this._removingAllDocs);
-        if (!this._removingAllDocs) {
-          crdtSync = this._synchronizeCrdt(collectionName, id);
-          if (_.isArray(crdtSync)) {
-            crdtColl = crdtSync[0], crdtId = crdtSync[1], crdtFields = crdtSync[2], added = crdtSync[3];
-            console.assert(!added, 'Trying to delete a non-existent CRDT');
-            this.changed(crdtColl, crdtId, crdtFields, false);
-          }
-        }
-        return _LivedataSubscription.__super__.removed.call(this, collectionName, id);
-      };
-
-      _LivedataSubscription.prototype._removeAllDocuments = function() {
-        this._removingAllDocs = true;
-        return _LivedataSubscription.__super__._removeAllDocuments.call(this);
-      };
-
-      return _LivedataSubscription;
-
-    })(OriginalLivedataSubscription);
+  var getCrdtCollectionName = function (collectionName) {
+    return "_" + collectionName + "Crdts";
   }
 
+  var getCrdtRecordsetName = function (recordsetName) {
+    return "_" + recordsetName + "Crdts";
+  }
+
+  Meteor.publishVersioned = function(recordsetName, publishFunction) {
+    Meteor.publish(recordsetName, publishFunction);
+
+    var crdtRecordsetName = getCrdtRecordsetName(recordsetName);
+    Meteor.publish(crdtRecordsetName, function() {
+      var self = this;
+      var publishHandler = {
+        added: function(collectionName, id, fields) {
+          self.added(getCrdtCollectionName(collectionName), id, fields); // todo: nem jó change?
+        },
+        changed : function(collectionName, id, fields) {
+          self.changed(getCrdtCollectionName(collectionName), id, fields);
+        },
+        removed: function(collectionName, id, fields) {
+          self.removed(getCrdtCollectionName(collectionName), id, fields);
+        },
+        stop: function() {
+          self.stop();
+        },
+        error: function() {
+          self.error();
+        }
+      };
+      var result = publishFunction.apply(publishHandler, arguments);
+      var publishedCollectionName = result._getCollectionName();
+      var crdtCollectionName = getCrdtCollectionName(publishedCollectionName);
+
+      var collection = Meteor.tx._getCollection(publishedCollectionName);
+      if(!collection)
+        return;
+      var crdtCollection = collection._crdts;
+
+      result.observeChanges({
+        added: function(id, fields) {
+          var addedCrdt = crdtCollection.findOne({_crdtId: id});
+          if(addedCrdt)
+            self.added(crdtCollectionName, addedCrdt._id, addedCrdt);
+        },
+        changed: function(id, fields) {
+          var changedCrdt = crdtCollection.findOne({_crdtId: id});
+          if(changedCrdt)
+            self.changed(crdtCollectionName, changedCrdt._id, changedCrdt);
+        },
+        removed: function(id) {
+          var removedCrdt = crdtCollection.findOne({_crdtId: id});
+          if(removedCrdt)
+            self.removed(crdtCollectionName, removedCrdt._id, removedCrdt);
+        }
+      });
+      self.ready();
+    });
+  };
+
+  Meteor.subscribeVersioned = function(recordsetName) {
+    Meteor.subscribe(recordsetName);
+    Meteor.subscribe(getCrdtRecordsetName(recordsetName));
+  };
 }).call(this);
