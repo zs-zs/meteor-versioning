@@ -213,7 +213,7 @@
         _ref2 = this.collProps;
         for (collKey in _ref2) {
           collSpec = _ref2[collKey];
-          if (collSpec.type = '[{}]') {
+          if (collSpec.type === '[{}]' && snapshot[collKey]) {
             snapshot[collKey] = _.values(snapshot[collKey]);
           }
         }
