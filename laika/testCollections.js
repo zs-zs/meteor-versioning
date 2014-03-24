@@ -1,0 +1,1 @@
+Todos = new Meteor.Collection('Todos', {versioned: true});

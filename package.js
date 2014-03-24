@@ -5,8 +5,8 @@ Package.describe({
 Package.on_use(function (api, where) {
 	where = where || ['client', 'server'];
 	api.use(['underscore', 'logger', 'i18n', 'mongo-livedata', 'livedata', 'random'], where);
-	api.add_files('crdt.js', where);
-	api.add_files('versioned-collection.js', where);
-	api.add_files('transactions.js', where);
-	api.add_files('messages.js', where);
+	api.add_files('lib/crdt.js', where);
+	api.add_files('lib/versioned-collection.js', where);
+	api.add_files('lib/transactions.js', where);
+	api.add_files('lib/messages.js', where);
 });
